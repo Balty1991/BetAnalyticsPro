@@ -1,0 +1,41 @@
+name: Sync from BetAnalyticsProV3 main
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, '[sync-v3-main-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout BetAnalyticsProV3 source
+        uses: actions/checkout@v4
+        with:
+          repository: Balty1991/BetAnalyticsProV3
+          ref: main
+          path: /tmp/BetAnalyticsProV3-source
+      - name: Replace target with V3 version
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude='.git' \
+            /tmp/BetAnalyticsProV3-source/ ./
+          rm -f .sync-from-v3-trigger
+          git config user.name "actions-user"
+          git config user.email "actions-user@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Already synced with BetAnalyticsProV3 main"
+          else
+            git commit -m "Sync live app from BetAnalyticsProV3 main [sync-v3-main-applied]"
+            git push
+          fi
