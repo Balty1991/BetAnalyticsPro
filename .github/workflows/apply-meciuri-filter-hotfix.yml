@@ -1,0 +1,45 @@
+name: Apply Meciuri filter hotfix
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    if: ${{ !contains(github.event.head_commit.message, '[filter-hotfix-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject Meciuri hardfix script into index
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          html = p.read_text(encoding='utf-8')
+          script = '<script defer src="assets/meciuri_filters_hardfix.js?v=20260505hardfix1"></script>'
+          # remove older injected copies, if any
+          html = html.replace('<script defer src="assets/meciuri_filters_hardfix.js?v=20260505hardfix1"></script>\n', '')
+          html = html.replace('<script src="assets/meciuri_filters_hardfix.js?v=20260505hardfix1" defer></script>\n', '')
+          if script not in html:
+              marker = '</body>'
+              if marker in html:
+                  html = html.replace(marker, script + '\n' + marker, 1)
+              else:
+                  html += '\n' + script + '\n'
+          p.write_text(html, encoding='utf-8')
+          PY
+      - name: Commit hotfix if changed
+        run: |
+          git config user.name "actions-user"
+          git config user.email "actions-user@users.noreply.github.com"
+          if ! git diff --quiet -- index.html; then
+            git add index.html
+            git commit -m "Inject Meciuri filter hardfix [filter-hotfix-applied]"
+            git push
+          else
+            echo "index.html already patched"
+          fi
